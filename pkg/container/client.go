@@ -30,10 +30,11 @@ type Client interface {
 	StopContainer(Container, time.Duration) error
 	StartContainer(Container) (t.ContainerID, error)
 	RenameContainer(Container, string) error
-	IsContainerStale(Container) (stale bool, latestImage t.ImageID, err error)
+	IsContainerStale(Container, string) (stale bool, latestImage string, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container Container) bool
+	CreateContainer(string, string) error
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -68,6 +69,22 @@ type dockerClient struct {
 	reviveStopped     bool
 	includeRestarting bool
 	warnOnHeadFailed  string
+}
+
+func (client dockerClient) CreateContainer(imageName string, containerName string) error {
+	ctx := context.Background()
+
+	resp, err := client.api.ContainerCreate(ctx, &container.Config{
+		Image: imageName,
+	}, nil, nil, nil, "")
+
+	if err != nil {
+		return err
+	}
+
+	err = client.api.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
+
+	return err
 }
 
 func (client dockerClient) WarnOnHeadPullFailed(container Container) bool {
@@ -261,42 +278,51 @@ func (client dockerClient) RenameContainer(c Container, newName string) error {
 	return client.api.ContainerRename(bg, string(c.ID()), newName)
 }
 
-func (client dockerClient) IsContainerStale(container Container) (stale bool, latestImage t.ImageID, err error) {
+func (client dockerClient) IsContainerStale(container Container, imageTag string) (stale bool, latestImage string, err error) {
 	ctx := context.Background()
 
 	if !client.pullImages {
 		log.Debugf("Skipping image pull.")
-	} else if err := client.PullImage(ctx, container); err != nil {
-		return false, container.SafeImageID(), err
+	} else if err := client.PullImage(ctx, container, imageTag); err != nil {
+		return false, container.ImageName(), err
 	}
 
-	return client.HasNewImage(ctx, container)
+	return client.HasNewImage(ctx, container, imageTag)
 }
 
-func (client dockerClient) HasNewImage(ctx context.Context, container Container) (hasNew bool, latestImage t.ImageID, err error) {
-	currentImageID := t.ImageID(container.containerInfo.ContainerJSONBase.Image)
-	imageName := container.ImageName()
+func (client dockerClient) HasNewImage(ctx context.Context, container Container, tag string) (hasNew bool, latestImage string, err error) {
+	currentImageID := container.containerInfo.ContainerJSONBase.Image
+	imageName := strings.Split(container.ImageName(), ":")[0] + ":" + tag
 
 	newImageInfo, _, err := client.api.ImageInspectWithRaw(ctx, imageName)
 	if err != nil {
 		return false, currentImageID, err
 	}
 
-	newImageID := t.ImageID(newImageInfo.ID)
-	if newImageID == currentImageID {
+	newImageName := newImageInfo.ID
+	if tag != "" {
+		newImageName = fmt.Sprintf("%s:%s", newImageName, tag)
+	}
+	if newImageName == currentImageID {
 		log.Debugf("No new images found for %s", container.Name())
 		return false, currentImageID, nil
 	}
 
-	log.Infof("Found new %s image (%s)", imageName, newImageID.ShortID())
-	return true, newImageID, nil
+	log.Infof("Found new %s image (%s)", imageName, newImageName)
+	return true, newImageName, nil
 }
 
 // PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
 // to match the one that the registry reports via a HEAD request
-func (client dockerClient) PullImage(ctx context.Context, container Container) error {
+func (client dockerClient) PullImage(ctx context.Context, container Container, imageTag string) error {
 	containerName := container.Name()
 	imageName := container.ImageName()
+
+	canonicalImageName := strings.Split(imageName, ":")[0]
+
+	if imageTag != "" {
+		imageName = fmt.Sprintf("%s:%s", canonicalImageName, imageTag)
+	}
 
 	fields := log.Fields{
 		"image":     imageName,
@@ -304,7 +330,7 @@ func (client dockerClient) PullImage(ctx context.Context, container Container) e
 	}
 
 	log.WithFields(fields).Debugf("Trying to load authentication credentials.")
-	opts, err := registry.GetPullOptions(imageName)
+	opts, err := registry.GetPullOptions(canonicalImageName)
 	if err != nil {
 		log.Debugf("Error loading authentication credentials %s", err)
 		return err
@@ -315,7 +341,7 @@ func (client dockerClient) PullImage(ctx context.Context, container Container) e
 
 	log.WithFields(fields).Debugf("Checking if pull is needed")
 
-	if match, err := digest.CompareDigest(container, opts.RegistryAuth); err != nil {
+	if match, err := digest.CompareDigest(container, opts.RegistryAuth, imageName); err != nil {
 		headLevel := log.DebugLevel
 		if client.WarnOnHeadPullFailed(container) {
 			headLevel = log.WarnLevel

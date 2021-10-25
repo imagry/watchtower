@@ -2,17 +2,18 @@ package manifest
 
 import (
 	"fmt"
+	url2 "net/url"
+	"strings"
+
 	"github.com/containrrr/watchtower/pkg/registry/auth"
 	"github.com/containrrr/watchtower/pkg/registry/helpers"
 	"github.com/containrrr/watchtower/pkg/types"
 	ref "github.com/docker/distribution/reference"
 	"github.com/sirupsen/logrus"
-	url2 "net/url"
-	"strings"
 )
 
 // BuildManifestURL from raw image data
-func BuildManifestURL(container types.Container) (string, error) {
+func BuildManifestURL(container types.Container, targetImageName string) (string, error) {
 
 	normalizedName, err := ref.ParseNormalizedNamed(container.ImageName())
 	if err != nil {
@@ -20,7 +21,7 @@ func BuildManifestURL(container types.Container) (string, error) {
 	}
 
 	host, err := helpers.NormalizeRegistry(normalizedName.String())
-	img, tag := ExtractImageAndTag(strings.TrimPrefix(container.ImageName(), host+"/"))
+	img, tag := ExtractImageAndTag(strings.TrimPrefix(targetImageName, host+"/"))
 
 	logrus.WithFields(logrus.Fields{
 		"image":      img,
@@ -34,9 +35,6 @@ func BuildManifestURL(container types.Container) (string, error) {
 	}
 	img = auth.GetScopeFromImageName(img, host)
 
-	if !strings.Contains(img, "/") {
-		img = "library/" + img
-	}
 	url := url2.URL{
 		Scheme: "https",
 		Host:   host,

@@ -1,9 +1,9 @@
 package update
 
 import (
-	"io"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -13,7 +13,7 @@ var (
 )
 
 // New is a factory function creating a new  Handler instance
-func New(updateFn func(), updateLock chan bool) *Handler {
+func New(updateFn func(map[string]string), updateLock chan bool) *Handler {
 	if updateLock != nil {
 		lock = updateLock
 	} else {
@@ -29,24 +29,36 @@ func New(updateFn func(), updateLock chan bool) *Handler {
 
 // Handler is an API handler used for triggering container update scans
 type Handler struct {
-	fn   func()
+	fn   func(containerImageTags map[string]string)
 	Path string
+}
+
+type UpdateRequestBody struct {
+	AiDriverTag string
+	DaemonTag   string
 }
 
 // Handle is the actual http.Handle function doing all the heavy lifting
 func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	log.Info("Updates triggered by HTTP API request.")
 
-	_, err := io.Copy(os.Stdout, r.Body)
+	var urb UpdateRequestBody
+	err := json.NewDecoder(r.Body).Decode(&urb)
 	if err != nil {
-		log.Println(err)
+		fmt.Fprintln(w, "Failed to load request body")
+		w.WriteHeader(http.StatusBadRequest)
+		log.Errorf("Update Skipped. %s", err)
 		return
 	}
+
+	containerImageTags := make(map[string]string)
+	containerImageTags["aiDriverTag"] = urb.AiDriverTag
+	containerImageTags["daemonTag"] = urb.DaemonTag
 
 	select {
 	case chanValue := <-lock:
 		defer func() { lock <- chanValue }()
-		handle.fn()
+		handle.fn(containerImageTags)
 	default:
 		log.Debug("Skipped. Another update already running.")
 	}

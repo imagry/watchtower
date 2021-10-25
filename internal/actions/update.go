@@ -2,6 +2,7 @@ package actions
 
 import (
 	"errors"
+
 	"github.com/containrrr/watchtower/internal/util"
 	"github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/lifecycle"
@@ -15,7 +16,7 @@ import (
 // used to start those containers have been updated. If a change is detected in
 // any of the images, the associated containers are stopped and restarted with
 // the new image.
-func Update(client container.Client, params types.UpdateParams) (types.Report, error) {
+func Update(client container.Client, params types.UpdateParams, imageTags map[string]string) (types.Report, error) {
 	log.Debug("Checking containers for updated images")
 	progress := &session.Progress{}
 	staleCount := 0
@@ -30,26 +31,18 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 	}
 
 	staleCheckFailed := 0
+	var newImages = make(map[string]string)
 
 	for i, targetContainer := range containers {
-		stale, newestImage, err := client.IsContainerStale(targetContainer)
-		shouldUpdate := stale && !params.NoRestart && !params.MonitorOnly && !targetContainer.IsMonitorOnly()
-		if err == nil && shouldUpdate {
-			// Check to make sure we have all the necessary information for recreating the container
-			err = targetContainer.VerifyConfiguration()
-			// If the image information is incomplete and trace logging is enabled, log it for further diagnosis
-			if err != nil && log.IsLevelEnabled(log.TraceLevel) {
-				imageInfo := targetContainer.ImageInfo()
-				log.Tracef("Image info: %#v", imageInfo)
-				log.Tracef("Container info: %#v", targetContainer.ContainerInfo())
-				if imageInfo != nil {
-					log.Tracef("Image config: %#v", imageInfo.Config)
-				}
-			}
+		targetContainerName := targetContainer.Name()
+		stale, newestImage, err := client.IsContainerStale(targetContainer, imageTags[targetContainerName])
+
+		if stale {
+			newImages[targetContainerName] = newestImage
 		}
 
 		if err != nil {
-			log.Infof("Unable to update container %q: %v. Proceeding to next.", targetContainer.Name(), err)
+			log.Infof("Unable to update container %q: %v. Proceeding to next.", targetContainerName, err)
 			stale = false
 			staleCheckFailed++
 			progress.AddSkipped(targetContainer, err)
@@ -73,19 +66,17 @@ func Update(client container.Client, params types.UpdateParams) (types.Report, e
 	var containersToUpdate []container.Container
 	if !params.MonitorOnly {
 		for _, c := range containers {
-			if !c.IsMonitorOnly() {
-				containersToUpdate = append(containersToUpdate, c)
-				progress.MarkForUpdate(c.ID())
-			}
+			containersToUpdate = append(containersToUpdate, c)
+			progress.MarkForUpdate(c.ID())
 		}
 	}
 
 	if params.RollingRestart {
 		progress.UpdateFailed(performRollingRestart(containersToUpdate, client, params))
 	} else {
-		failedStop, stoppedImages := stopContainersInReversedOrder(containersToUpdate, client, params)
+		failedStop, _ := stopContainersInReversedOrder(containersToUpdate, client, params)
 		progress.UpdateFailed(failedStop)
-		failedStart := restartContainersInSortedOrder(containersToUpdate, client, params, stoppedImages)
+		failedStart := restartContainersInSortedOrder(containersToUpdate, client, params, newImages)
 		progress.UpdateFailed(failedStart)
 	}
 
@@ -162,24 +153,18 @@ func stopStaleContainer(container container.Container, client container.Client, 
 	return nil
 }
 
-func restartContainersInSortedOrder(containers []container.Container, client container.Client, params types.UpdateParams, stoppedImages map[types.ImageID]bool) map[types.ContainerID]error {
-	cleanupImageIDs := make(map[types.ImageID]bool, len(containers))
+func restartContainersInSortedOrder(containers []container.Container, client container.Client, params types.UpdateParams, newImages map[string]string) map[types.ContainerID]error {
 	failed := make(map[types.ContainerID]error, len(containers))
 
 	for _, c := range containers {
-		if !c.ToRestart() {
-			continue
-		}
-		if stoppedImages[c.ImageID()] {
-			if err := restartStaleContainer(c, client, params); err != nil {
-				failed[c.ID()] = err
-			}
-			cleanupImageIDs[c.ImageID()] = true
-		}
-	}
+		containerImage := newImages[c.Name()]
+		err := client.CreateContainer(containerImage, c.Name())
 
-	if params.Cleanup {
-		cleanupImages(client, cleanupImageIDs)
+		if err != nil {
+			log.Error(err)
+			failed[c.ID()] = err
+			break
+		}
 	}
 
 	return failed
