@@ -2,16 +2,17 @@ package digest_test
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/containrrr/watchtower/internal/actions/mocks"
 	"github.com/containrrr/watchtower/pkg/registry/digest"
 	wtTypes "github.com/containrrr/watchtower/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
-	"net/http"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestDigest(t *testing.T) {
@@ -65,7 +66,7 @@ var _ = Describe("Digests", func() {
 		It("should return true if digests match",
 			SkipIfCredentialsEmpty(GHCRCredentials, func() {
 				creds := fmt.Sprintf("%s:%s", GHCRCredentials.Username, GHCRCredentials.Password)
-				matches, err := digest.CompareDigest(mockContainer, creds)
+				matches, err := digest.CompareDigest(mockContainer, creds, mockImage)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(matches).To(Equal(true))
 			}),
@@ -78,7 +79,7 @@ var _ = Describe("Digests", func() {
 
 		})
 		It("should return an error when container contains no image info", func() {
-			matches, err := digest.CompareDigest(mockContainerNoImage, `user:pass`)
+			matches, err := digest.CompareDigest(mockContainerNoImage, `user:pass`, mockImage)
 			Expect(err).To(HaveOccurred())
 			Expect(matches).To(Equal(false))
 		})

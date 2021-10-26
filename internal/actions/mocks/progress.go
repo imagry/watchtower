@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"errors"
+
 	"github.com/containrrr/watchtower/pkg/session"
 	wt "github.com/containrrr/watchtower/pkg/types"
 )
@@ -24,7 +25,7 @@ func CreateMockProgressReport(states ...session.State) wt.Report {
 			break
 		case session.FreshState:
 			c, _ := CreateContainerForProgress(index, 31, "frsh%d")
-			progress.AddScanned(c, c.ImageID())
+			progress.AddScanned(c, c.ImageName())
 			break
 		case session.UpdatedState:
 			c, newImage := CreateContainerForProgress(index, 11, "updt%d")

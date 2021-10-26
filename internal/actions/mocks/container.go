@@ -2,14 +2,14 @@ package mocks
 
 import (
 	"fmt"
-	"github.com/containrrr/watchtower/pkg/container"
-	wt "github.com/containrrr/watchtower/pkg/types"
-	"github.com/docker/docker/api/types"
-	dockerContainer "github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/containrrr/watchtower/pkg/container"
+	"github.com/docker/docker/api/types"
+	dockerContainer "github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 )
 
 // CreateMockContainer creates a container substitute valid for testing
@@ -100,7 +100,7 @@ func CreateMockContainerWithConfig(id string, name string, image string, running
 }
 
 // CreateContainerForProgress creates a container substitute for tracking session/update progress
-func CreateContainerForProgress(index int, idPrefix int, nameFormat string) (container.Container, wt.ImageID) {
+func CreateContainerForProgress(index int, idPrefix int, nameFormat string) (container.Container, string) {
 	indexStr := strconv.Itoa(idPrefix + index)
 	mockID := indexStr + strings.Repeat("0", 61-len(indexStr))
 	contID := "c79" + mockID
@@ -112,5 +112,5 @@ func CreateContainerForProgress(index int, idPrefix int, nameFormat string) (con
 		Image: imageName,
 	}
 	c := CreateMockContainerWithConfig(contID, contName, oldImgID, true, false, time.Now(), config)
-	return c, wt.ImageID(newImgID)
+	return c, newImgID
 }
