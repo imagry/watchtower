@@ -2,6 +2,7 @@ package actions
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/containrrr/watchtower/internal/util"
 	"github.com/containrrr/watchtower/pkg/container"
@@ -34,7 +35,7 @@ func Update(client container.Client, params types.UpdateParams, imageTags map[st
 	var newImages = make(map[string]string)
 
 	for i, targetContainer := range containers {
-		targetContainerName := targetContainer.Name()
+		targetContainerName := strings.ReplaceAll(targetContainer.Name(), "/", "")
 		stale, newestImage, err := client.IsContainerStale(targetContainer, imageTags[targetContainerName])
 
 		if stale {
@@ -157,11 +158,12 @@ func restartContainersInSortedOrder(containers []container.Container, client con
 	failed := make(map[types.ContainerID]error, len(containers))
 
 	for _, c := range containers {
-		containerImage := newImages[c.Name()]
+		containerName := strings.ReplaceAll(c.Name(), "/", "")
+		containerImage := newImages[containerName]
 		err := client.CreateContainer(containerImage, c.Name())
 
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Failed to start container %s due to error: %s", c.Name(), err)
 			failed[c.ID()] = err
 			break
 		}

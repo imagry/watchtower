@@ -299,17 +299,14 @@ func (client dockerClient) HasNewImage(ctx context.Context, container Container,
 		return false, currentImageID, err
 	}
 
-	newImageName := newImageInfo.ID
-	if tag != "" {
-		newImageName = fmt.Sprintf("%s:%s", newImageName, tag)
-	}
-	if newImageName == currentImageID {
+	newImageID := newImageInfo.ID
+	if newImageID == currentImageID {
 		log.Debugf("No new images found for %s", container.Name())
 		return false, currentImageID, nil
 	}
 
-	log.Infof("Found new %s image (%s)", imageName, newImageName)
-	return true, newImageName, nil
+	log.Infof("Found new %s image (%s)", imageName, newImageID)
+	return true, imageName, nil
 }
 
 // PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed

@@ -5,7 +5,7 @@ services:
     container_name: watchtower
     build:
       context: ./
-      dockerfile: dockerfiles/Dockerfile.dev-self-contained
+      dockerfile: dockerfiles/Dockerfile.prod
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - $HOME/.docker/config.json:/config.json

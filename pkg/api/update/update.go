@@ -52,8 +52,8 @@ func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	containerImageTags := make(map[string]string)
-	containerImageTags["aiDriverTag"] = urb.AiDriverTag
-	containerImageTags["daemonTag"] = urb.DaemonTag
+	containerImageTags["aidriver"] = urb.AiDriverTag
+	containerImageTags["daemon"] = urb.DaemonTag
 
 	select {
 	case chanValue := <-lock:
