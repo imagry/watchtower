@@ -46,7 +46,6 @@ func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&urb)
 	if err != nil {
 		fmt.Fprintln(w, "Failed to load request body")
-		w.WriteHeader(http.StatusBadRequest)
 		log.Errorf("Update Skipped. %s", err)
 		return
 	}

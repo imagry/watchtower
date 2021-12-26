@@ -2,8 +2,9 @@ package api
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const tokenMissingMsg = "api token is empty or has not been set. exiting"
@@ -30,7 +31,6 @@ func (api *API) RequireToken(fn http.HandlerFunc) http.HandlerFunc {
 			log.Tracef("Expected token to be \"%s\"", api.Token)
 			return
 		}
-		log.Debug("Valid token found.")
 		fn(w, r)
 	}
 }
