@@ -1,13 +1,14 @@
 package manifest_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/containrrr/watchtower/internal/actions/mocks"
 	"github.com/containrrr/watchtower/pkg/registry/manifest"
 	apiTypes "github.com/docker/docker/api/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"testing"
-	"time"
 )
 
 func TestManifest(t *testing.T) {
@@ -29,7 +30,7 @@ var _ = Describe("the manifest module", func() {
 				},
 			}
 			mock := mocks.CreateMockContainerWithImageInfo(mockId, mockName, "ghcr.io/containrrr/watchtower:latest", mockCreated, imageInfo)
-			res, err := manifest.BuildManifestURL(mock)
+			res, err := manifest.BuildManifestURL(mock, "containrrr/watchtower")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).To(Equal(expected))
 		})
@@ -42,7 +43,7 @@ var _ = Describe("the manifest module", func() {
 			}
 
 			mock := mocks.CreateMockContainerWithImageInfo(mockId, mockName, "containrrr/watchtower:latest", mockCreated, imageInfo)
-			res, err := manifest.BuildManifestURL(mock)
+			res, err := manifest.BuildManifestURL(mock, "containrrr/watchtower")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).To(Equal(expected))
 		})
@@ -57,7 +58,7 @@ var _ = Describe("the manifest module", func() {
 
 			mock := mocks.CreateMockContainerWithImageInfo(mockId, mockName, "containrrr/watchtower", mockCreated, imageInfo)
 
-			res, err := manifest.BuildManifestURL(mock)
+			res, err := manifest.BuildManifestURL(mock, "containrrr/watchtower")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(res).To(Equal(expected))
 		})

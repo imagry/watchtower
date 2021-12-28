@@ -27,8 +27,8 @@ func (m Progress) AddSkipped(cont types.Container, err error) {
 }
 
 // AddScanned adds a container to the Progress with the state set as scanned
-func (m Progress) AddScanned(cont types.Container, newImage types.ImageID) {
-	m.Add(UpdateFromContainer(cont, newImage, ScannedState))
+func (m Progress) AddScanned(cont types.Container, newImage string) {
+	m.Add(UpdateFromContainer(cont, types.ImageID(newImage), ScannedState))
 }
 
 // UpdateFailed updates the containers passed, setting their state as failed with the supplied error

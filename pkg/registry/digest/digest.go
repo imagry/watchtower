@@ -6,26 +6,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/containrrr/watchtower/internal/meta"
 	"github.com/containrrr/watchtower/pkg/registry/auth"
 	"github.com/containrrr/watchtower/pkg/registry/manifest"
 	"github.com/containrrr/watchtower/pkg/types"
 	"github.com/sirupsen/logrus"
-	"net"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // ContentDigestHeader is the key for the key-value pair containing the digest header
 const ContentDigestHeader = "Docker-Content-Digest"
 
 // CompareDigest ...
-func CompareDigest(container types.Container, registryAuth string) (bool, error) {
+func CompareDigest(container types.Container, registryAuth string, targetImageName string) (bool, error) {
 	if !container.HasImageInfo() {
 		return false, errors.New("container image info missing")
 	}
-	
+
 	var digest string
 
 	registryAuth = TransformAuth(registryAuth)
@@ -34,7 +35,7 @@ func CompareDigest(container types.Container, registryAuth string) (bool, error)
 		return false, err
 	}
 
-	digestURL, err := manifest.BuildManifestURL(container)
+	digestURL, err := manifest.BuildManifestURL(container, targetImageName)
 	if err != nil {
 		return false, err
 	}

@@ -1,43 +1,44 @@
-version: '3.7'
+version: "3.7"
 
 services:
-  watchtower:
-    container_name: watchtower
-    build:
-      context: ./
-      dockerfile: dockerfiles/Dockerfile.dev-self-contained
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - 8080:8080
-    command: --interval 10 --http-api-metrics --http-api-token demotoken --debug prometheus grafana parent child
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus
-    volumes:
-      - ./prometheus/:/etc/prometheus/
-      - prometheus:/prometheus/
-    ports:
-      - 9090:9090
-  grafana:
-    container_name: grafana
-    image: grafana/grafana
-    ports:
-      - 3000:3000
-    environment:
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
-    volumes:
-      - grafana:/var/lib/grafana
-      - ./grafana:/etc/grafana/provisioning
-  parent:
-    image: nginx
-    container_name: parent
-  child:
-    image: nginx:alpine
-    labels:
-      com.centurylinklabs.watchtower.depends-on: parent
-    container_name: child
+    watchtower:
+        container_name: watchtower
+        build:
+            context: ./
+            dockerfile: dockerfiles/Dockerfile.prod
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - $HOME/.docker/config.json:/config.json
+        ports:
+            - 8080:8080
+        command: --interval 10 --http-api-metrics --http-api-token demotoken --http-api-update --trace aidriver daemon
+    prometheus:
+        container_name: prometheus
+        image: prom/prometheus
+        volumes:
+            - ./prometheus/:/etc/prometheus/
+            - prometheus:/prometheus/
+        ports:
+            - 9090:9090
+    grafana:
+        container_name: grafana
+        image: grafana/grafana
+        ports:
+            - 3001:3001
+        environment:
+            GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+        volumes:
+            - grafana:/var/lib/grafana
+            - ./grafana:/etc/grafana/provisioning
+    parent:
+        image: nginx
+        container_name: parent
+    child:
+        image: nginx:alpine
+        labels:
+            com.centurylinklabs.watchtower.depends-on: parent
+        container_name: child
 
 volumes:
-  prometheus: {}
-  grafana: {}
+    prometheus: {}
+    grafana: {}

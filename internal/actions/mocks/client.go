@@ -3,8 +3,9 @@ package mocks
 import (
 	"errors"
 	"fmt"
-	"github.com/containrrr/watchtower/pkg/container"
 	"time"
+
+	"github.com/containrrr/watchtower/pkg/container"
 
 	t "github.com/containrrr/watchtower/pkg/types"
 	cli "github.com/docker/docker/client"
@@ -89,11 +90,15 @@ func (client MockClient) ExecuteCommand(_ t.ContainerID, command string, _ int) 
 }
 
 // IsContainerStale is always true for the mock client
-func (client MockClient) IsContainerStale(_ container.Container) (bool, t.ImageID, error) {
+func (client MockClient) IsContainerStale(_ container.Container, tag string) (bool, string, error) {
 	return true, "", nil
 }
 
 // WarnOnHeadPullFailed is always true for the mock client
 func (client MockClient) WarnOnHeadPullFailed(_ container.Container) bool {
 	return true
+}
+
+func (client MockClient) CreateContainer(string, string) error {
+	return nil
 }

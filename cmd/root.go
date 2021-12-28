@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/containrrr/watchtower/internal/meta"
 	"math"
 	"net/http"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/containrrr/watchtower/internal/meta"
 
 	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
 	"github.com/containrrr/watchtower/pkg/api/update"
@@ -172,7 +173,7 @@ func Run(c *cobra.Command, names []string) {
 
 	if runOnce {
 		writeStartupMessage(c, time.Time{}, filterDesc)
-		runUpdatesWithNotifications(filter)
+		runUpdatesWithNotifications(filter, nil)
 		notifier.Close()
 		os.Exit(0)
 		return
@@ -189,7 +190,7 @@ func Run(c *cobra.Command, names []string) {
 	httpAPI := api.New(apiToken)
 
 	if enableUpdateAPI {
-		updateHandler := update.New(func() { runUpdatesWithNotifications(filter) }, updateLock)
+		updateHandler := update.New(func(containerImageTags map[string]string) { runUpdatesWithNotifications(filter, containerImageTags) }, updateLock)
 		httpAPI.RegisterFunc(updateHandler.Path, updateHandler.Handle)
 	}
 
@@ -313,7 +314,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 			select {
 			case v := <-lock:
 				defer func() { lock <- v }()
-				metric := runUpdatesWithNotifications(filter)
+				metric := runUpdatesWithNotifications(filter, nil)
 				metrics.RegisterScan(metric)
 			default:
 				// Update was skipped
@@ -347,7 +348,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	return nil
 }
 
-func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
+func runUpdatesWithNotifications(filter t.Filter, tags map[string]string) *metrics.Metric {
 	notifier.StartNotification()
 	updateParams := t.UpdateParams{
 		Filter:         filter,
@@ -358,7 +359,7 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		LifecycleHooks: lifecycleHooks,
 		RollingRestart: rollingRestart,
 	}
-	result, err := actions.Update(client, updateParams)
+	result, err := actions.Update(client, updateParams, tags)
 	if err != nil {
 		log.Error(err)
 	}
