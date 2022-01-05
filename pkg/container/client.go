@@ -20,7 +20,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const defaultStopSignal = "SIGTERM"
+const defaultStopSignal = "SIGKILL"
 
 // A Client is the interface through which watchtower interacts with the
 // Docker API.
@@ -76,7 +76,7 @@ func (client dockerClient) CreateContainer(imageName string, containerName strin
 
 	resp, err := client.api.ContainerCreate(ctx, &container.Config{
 		Image: imageName,
-	}, nil, nil, nil, "")
+	}, nil, nil, nil, containerName)
 
 	if err != nil {
 		return err

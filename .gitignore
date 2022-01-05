@@ -8,3 +8,4 @@ dist
 /site
 coverage.out
 *.coverprofile
+~
