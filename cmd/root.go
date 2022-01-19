@@ -190,7 +190,7 @@ func Run(c *cobra.Command, names []string) {
 	httpAPI := api.New(apiToken)
 
 	if enableUpdateAPI {
-		updateHandler := update.New(func(containerImageTags map[string]string) { runUpdatesWithNotifications(filter, containerImageTags) }, updateLock)
+		updateHandler := update.New(func(containerImages map[string]string) { runUpdatesWithNotifications(filter, containerImages) }, updateLock)
 		httpAPI.RegisterFunc(updateHandler.Path, updateHandler.Handle)
 	}
 
@@ -348,7 +348,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	return nil
 }
 
-func runUpdatesWithNotifications(filter t.Filter, tags map[string]string) *metrics.Metric {
+func runUpdatesWithNotifications(filter t.Filter, images map[string]string) *metrics.Metric {
 	notifier.StartNotification()
 	updateParams := t.UpdateParams{
 		Filter:         filter,
@@ -359,7 +359,7 @@ func runUpdatesWithNotifications(filter t.Filter, tags map[string]string) *metri
 		LifecycleHooks: lifecycleHooks,
 		RollingRestart: rollingRestart,
 	}
-	result, err := actions.Update(client, updateParams, tags)
+	result, err := actions.Update(client, updateParams, images)
 	if err != nil {
 		log.Error(err)
 	}

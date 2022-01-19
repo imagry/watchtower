@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/containrrr/watchtower/pkg/registry"
 	"github.com/containrrr/watchtower/pkg/registry/digest"
@@ -35,6 +36,7 @@ type Client interface {
 	RemoveImageByID(t.ImageID) error
 	WarnOnHeadPullFailed(container Container) bool
 	CreateContainer(string, string) error
+	PullDockerImage(imageUrl string) error
 }
 
 // NewClient returns a new Client instance which can be used to interact with
@@ -307,6 +309,44 @@ func (client dockerClient) HasNewImage(ctx context.Context, container Container,
 
 	log.Infof("Found new %s image (%s)", imageName, newImageID)
 	return true, imageName, nil
+}
+
+// PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed
+// to match the one that the registry reports via a HEAD request
+func (client dockerClient) PullDockerImage(imageUrl string) error {
+	ctx := context.Background()
+
+	splitedName := strings.Split(imageUrl, ":")
+	if splitedName == nil ||  len(splitedName) != 2 {
+		return errors.New("Invalid image url")
+	}
+
+	canonicalImageName := splitedName[0]
+	
+	log.Debugf("Trying to load authentication credentials.")
+	opts, err := registry.GetPullOptions(canonicalImageName)
+	if err != nil {
+		log.Debugf("Error loading authentication credentials %s", err)
+		return err
+	}
+	if opts.RegistryAuth != "" {
+		log.Debug("Credentials loaded")
+	}
+
+	log.Debugf("Pulling image")
+	response, err := client.api.ImagePull(ctx, imageUrl, opts)
+	if err != nil {
+		log.Debugf("Error pulling image %s, %s", imageUrl, err)
+		return err
+	}
+
+	defer response.Close()
+	// the pull request will be aborted prematurely unless the response is read
+	if _, err = ioutil.ReadAll(response); err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
 }
 
 // PullImage pulls the latest image for the supplied container, optionally skipping if it's digest can be confirmed

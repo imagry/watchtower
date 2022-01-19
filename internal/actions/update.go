@@ -8,7 +8,6 @@ import (
 	"github.com/containrrr/watchtower/pkg/container"
 	"github.com/containrrr/watchtower/pkg/lifecycle"
 	"github.com/containrrr/watchtower/pkg/session"
-	"github.com/containrrr/watchtower/pkg/sorter"
 	"github.com/containrrr/watchtower/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,69 +16,24 @@ import (
 // used to start those containers have been updated. If a change is detected in
 // any of the images, the associated containers are stopped and restarted with
 // the new image.
-func Update(client container.Client, params types.UpdateParams, imageTags map[string]string) (types.Report, error) {
+func Update(client container.Client, params types.UpdateParams, images map[string]string) (types.Report, error) {
 	log.Debug("Checking containers for updated images")
-	progress := &session.Progress{}
-	staleCount := 0
 
 	if params.LifecycleHooks {
 		lifecycle.ExecutePreChecks(client, params)
 	}
 
-	containers, err := client.ListContainers(params.Filter)
-	if err != nil {
-		return nil, err
-	}
 
-	staleCheckFailed := 0
-	var newImages = make(map[string]string)
+	for _, image := range images {
 
-	for i, targetContainer := range containers {
-		targetContainerName := strings.ReplaceAll(targetContainer.Name(), "/", "")
-		stale, newestImage, err := client.IsContainerStale(targetContainer, imageTags[targetContainerName])
-
-		if stale {
-			newImages[targetContainerName] = newestImage
-		}
+		err := client.PullDockerImage(image)
 
 		if err != nil {
-			log.Infof("Unable to update container %q: %v. Proceeding to next.", targetContainerName, err)
-			stale = false
-			staleCheckFailed++
-			progress.AddSkipped(targetContainer, err)
-		} else {
-			progress.AddScanned(targetContainer, newestImage)
-		}
-		containers[i].Stale = stale
-
-		if stale {
-			staleCount++
+			log.Infof("Unable to update container %q: %v. Proceeding to next.", image, err)
 		}
 	}
 
-	containers, err = sorter.SortByDependencies(containers)
-	if err != nil {
-		return nil, err
-	}
-
-	checkDependencies(containers)
-
-	var containersToUpdate []container.Container
-	if !params.MonitorOnly {
-		for _, c := range containers {
-			containersToUpdate = append(containersToUpdate, c)
-			progress.MarkForUpdate(c.ID())
-		}
-	}
-
-	if params.RollingRestart {
-		progress.UpdateFailed(performRollingRestart(containersToUpdate, client, params))
-	} else {
-		failedStop, _ := stopContainersInReversedOrder(containersToUpdate, client, params)
-		progress.UpdateFailed(failedStop)
-		failedStart := restartContainersInSortedOrder(containersToUpdate, client, params, newImages)
-		progress.UpdateFailed(failedStart)
-	}
+	log.Debugf("containers updated")
 
 	if params.LifecycleHooks {
 		lifecycle.ExecutePostChecks(client, params)
@@ -115,6 +69,7 @@ func stopContainersInReversedOrder(containers []container.Container, client cont
 	failed = make(map[types.ContainerID]error, len(containers))
 	stopped = make(map[types.ImageID]bool, len(containers))
 	for i := len(containers) - 1; i >= 0; i-- {
+		log.Debugf("Stop in reverse %s", containers[i].ID())
 		if err := stopStaleContainer(containers[i], client, params); err != nil {
 			failed[containers[i].ID()] = err
 		} else {
@@ -167,6 +122,15 @@ func restartContainersInSortedOrder(containers []container.Container, client con
 			failed[c.ID()] = err
 			break
 		}
+
+		// log.Debug("RESTART: containerName: {}, ID: {}", containerName , c.ID())
+		// log.Debug("RESTART: Name: {}", c.Name())
+		// cmd := exec.Command(containerName + "_run.sh " + c.ID())
+		// if err := cmd.Run(); err != nil {
+		// 	log.Errorf("Failed to start container %s due to error: %s", c.Name(), err)
+		// 	failed[c.ID()] = err
+		// 	break
+		// }
 	}
 
 	return failed

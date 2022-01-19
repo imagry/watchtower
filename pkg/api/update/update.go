@@ -34,8 +34,8 @@ type Handler struct {
 }
 
 type UpdateRequestBody struct {
-	AiDriverTag string
-	DaemonTag   string
+	AiDriverImage string
+	DaemonImage   string
 }
 
 // Handle is the actual http.Handle function doing all the heavy lifting
@@ -50,14 +50,14 @@ func (handle *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	containerImageTags := make(map[string]string)
-	containerImageTags["aidriver"] = urb.AiDriverTag
-	containerImageTags["daemon"] = urb.DaemonTag
+	containerImages := make(map[string]string)
+	containerImages["aidriver"] = urb.AiDriverImage
+	containerImages["daemon"] = urb.DaemonImage
 
 	select {
 	case chanValue := <-lock:
 		defer func() { lock <- chanValue }()
-		handle.fn(containerImageTags)
+		handle.fn(containerImages)
 	default:
 		log.Debug("Skipped. Another update already running.")
 	}
